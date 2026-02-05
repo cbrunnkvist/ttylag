@@ -275,6 +275,14 @@ With high latency and low bandwidth, the terminal may display partial redraws. T
 - [golang.org/x/term](https://pkg.go.dev/golang.org/x/term) - Terminal raw mode
 - [golang.org/x/time/rate](https://pkg.go.dev/golang.org/x/time/rate) - Token bucket rate limiting
 
+## FAQ
+
+### Why is it called `ttylag` when it admits to being a "PTY lag simulator"?
+
+Because you can't remember "ptylag", and if you do, pronouncing that causes you to spit on the screen.
+
+N.b. the marketing team also considered calling it "lagshim" or "stutty" (ha-ha) but, come on, this is not a Ruby project ;-)
+
 ## License
 
 MIT
