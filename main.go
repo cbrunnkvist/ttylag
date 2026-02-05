@@ -24,6 +24,19 @@ import (
 
 const version = "0.1.0"
 
+// Default terminal dimensions when stdin is not a TTY
+const (
+	defaultTermCols = 80
+	defaultTermRows = 24
+)
+
+// Shutdown timing
+const (
+	drainTimeout       = 30 * time.Second       // Max time to wait for downstream to drain
+	goroutineExitWait  = 500 * time.Millisecond // Max time to wait for goroutines to exit
+	defaultBitsPerByte = 10                     // 8N1 serial: 1 start + 8 data + 1 stop
+)
+
 // Config holds all command-line configuration
 type Config struct {
 	// Delays
@@ -56,103 +69,6 @@ type Config struct {
 
 	// Command to run
 	Command []string
-}
-
-// Profiles for common connection types
-var profiles = map[string]Config{
-	// Serial connections
-	"9600": {
-		UpRate:   960, // 9600 baud / 10 bits per byte
-		DownRate: 960,
-	},
-	"2400": {
-		UpRate:   240, // 2400 baud / 10 bits per byte
-		DownRate: 240,
-	},
-
-	// Dial-up modems
-	"dialup": {
-		RTT:      150 * time.Millisecond,
-		Jitter:   30 * time.Millisecond,
-		DownRate: 56000 / 8, // 56kbit -> bytes
-		UpRate:   33600 / 8, // 33.6kbit -> bytes
-	},
-
-	// Mobile networks
-	"edge": {
-		RTT:      500 * time.Millisecond,
-		Jitter:   100 * time.Millisecond,
-		DownRate: 200000 / 8, // 200kbit
-		UpRate:   100000 / 8, // 100kbit
-	},
-	"3g": {
-		RTT:      200 * time.Millisecond,
-		Jitter:   50 * time.Millisecond,
-		DownRate: 1000000 / 8, // 1mbit
-		UpRate:   384000 / 8,  // 384kbit
-	},
-	"lte": {
-		RTT:      50 * time.Millisecond,
-		Jitter:   15 * time.Millisecond,
-		DownRate: 20000000 / 8, // 20mbit
-		UpRate:   5000000 / 8,  // 5mbit
-	},
-	"lte-poor": {
-		RTT:      150 * time.Millisecond,
-		Jitter:   50 * time.Millisecond,
-		DownRate: 2000000 / 8, // 2mbit
-		UpRate:   500000 / 8,  // 500kbit
-	},
-
-	// Wired connections
-	"dsl": {
-		RTT:      50 * time.Millisecond,
-		Jitter:   10 * time.Millisecond,
-		DownRate: 8000000 / 8, // 8mbit
-		UpRate:   1000000 / 8, // 1mbit
-	},
-	"cable": {
-		RTT:      30 * time.Millisecond,
-		Jitter:   5 * time.Millisecond,
-		DownRate: 50000000 / 8, // 50mbit
-		UpRate:   5000000 / 8,  // 5mbit
-	},
-
-	// Satellite
-	"satellite": {
-		RTT:      600 * time.Millisecond, // Geostationary orbit
-		Jitter:   50 * time.Millisecond,
-		DownRate: 25000000 / 8, // 25mbit (Starlink-ish)
-		UpRate:   5000000 / 8,  // 5mbit
-	},
-	"satellite-geo": {
-		RTT:      700 * time.Millisecond, // High geostationary latency
-		Jitter:   100 * time.Millisecond,
-		DownRate: 10000000 / 8, // 10mbit (traditional VSAT)
-		UpRate:   2000000 / 8,  // 2mbit
-	},
-
-	// WiFi scenarios
-	"wifi-poor": {
-		RTT:      80 * time.Millisecond,
-		Jitter:   40 * time.Millisecond,
-		DownRate: 2000000 / 8, // 2mbit
-		UpRate:   1000000 / 8, // 1mbit
-	},
-	"wifi-bad": {
-		RTT:      200 * time.Millisecond,
-		Jitter:   100 * time.Millisecond,
-		DownRate: 500000 / 8, // 500kbit
-		UpRate:   250000 / 8, // 250kbit
-	},
-
-	// International/long-distance
-	"intercontinental": {
-		RTT:      250 * time.Millisecond, // e.g., US to Asia
-		Jitter:   30 * time.Millisecond,
-		DownRate: 10000000 / 8, // 10mbit (typical VPN)
-		UpRate:   5000000 / 8,  // 5mbit
-	},
 }
 
 func main() {
@@ -192,7 +108,7 @@ func main() {
 
 func parseFlags() (*Config, error) {
 	cfg := &Config{
-		BitsPerByte: 10, // Default for 8N1 serial
+		BitsPerByte: defaultBitsPerByte,
 	}
 
 	// Custom flag set to handle -- separator (pflag handles this automatically)
@@ -213,7 +129,7 @@ func parseFlags() (*Config, error) {
 	chunkSize := fs.IntP("chunk", "c", 0, "Max bytes per write (0=unlimited)")
 	frameTime := fs.String("frame", "", "Coalesce output interval (e.g., 40ms)")
 	serial := fs.IntP("serial", "s", 0, "Serial port speed in bps (e.g., 9600)")
-	bitsPerByte := fs.Int("bits-per-byte", 10, "Bits per byte for serial (default 10 for 8N1)")
+	bitsPerByte := fs.Int("bits-per-byte", defaultBitsPerByte, "Bits per byte for serial (default 10 for 8N1)")
 	seed := fs.Int64("seed", 0, "Random seed for jitter (0=random)")
 	profile := fs.StringP("profile", "p", "", "Connection profile (see below)")
 	fs.BoolVarP(&cfg.Help, "help", "h", false, "Show help")
@@ -274,63 +190,39 @@ func parseFlags() (*Config, error) {
 		cfg.DownRate = p.DownRate
 	}
 
-	// Parse durations
-	var err error
-	if *rtt != "" {
-		cfg.RTT, err = time.ParseDuration(*rtt)
-		if err != nil {
-			return nil, fmt.Errorf("invalid --rtt: %w", err)
-		}
-	}
-	if *upDelay != "" {
-		cfg.UpDelay, err = time.ParseDuration(*upDelay)
-		if err != nil {
-			return nil, fmt.Errorf("invalid --up-delay: %w", err)
-		}
-	}
-	if *downDelay != "" {
-		cfg.DownDelay, err = time.ParseDuration(*downDelay)
-		if err != nil {
-			return nil, fmt.Errorf("invalid --down-delay: %w", err)
-		}
-	}
-	if *jitter != "" {
-		cfg.Jitter, err = time.ParseDuration(*jitter)
-		if err != nil {
-			return nil, fmt.Errorf("invalid --jitter: %w", err)
-		}
-	}
-	if *upJitter != "" {
-		cfg.UpJitter, err = time.ParseDuration(*upJitter)
-		if err != nil {
-			return nil, fmt.Errorf("invalid --up-jitter: %w", err)
-		}
-	}
-	if *downJitter != "" {
-		cfg.DownJitter, err = time.ParseDuration(*downJitter)
-		if err != nil {
-			return nil, fmt.Errorf("invalid --down-jitter: %w", err)
-		}
-	}
-	if *frameTime != "" {
-		cfg.FrameTime, err = time.ParseDuration(*frameTime)
-		if err != nil {
-			return nil, fmt.Errorf("invalid --frame: %w", err)
+	// Parse duration flags
+	for _, d := range []struct {
+		value    string
+		flagName string
+		dst      *time.Duration
+	}{
+		{*rtt, "rtt", &cfg.RTT},
+		{*upDelay, "up-delay", &cfg.UpDelay},
+		{*downDelay, "down-delay", &cfg.DownDelay},
+		{*jitter, "jitter", &cfg.Jitter},
+		{*upJitter, "up-jitter", &cfg.UpJitter},
+		{*downJitter, "down-jitter", &cfg.DownJitter},
+		{*frameTime, "frame", &cfg.FrameTime},
+	} {
+		if err := parseDuration(d.value, d.flagName, d.dst); err != nil {
+			return nil, err
 		}
 	}
 
-	// Parse bandwidth
+	// Parse bandwidth flags
 	if *upRate != "" {
-		cfg.UpRate, err = parseBandwidth(*upRate)
+		rate, err := parseBandwidth(*upRate)
 		if err != nil {
 			return nil, fmt.Errorf("invalid --up: %w", err)
 		}
+		cfg.UpRate = rate
 	}
 	if *downRate != "" {
-		cfg.DownRate, err = parseBandwidth(*downRate)
+		rate, err := parseBandwidth(*downRate)
 		if err != nil {
 			return nil, fmt.Errorf("invalid --down: %w", err)
 		}
+		cfg.DownRate = rate
 	}
 
 	// Handle serial mode
@@ -373,6 +265,20 @@ func parseFlags() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// parseDuration parses a duration flag value into dst if non-empty.
+// Returns an error with the flag name if parsing fails.
+func parseDuration(s string, flagName string, dst *time.Duration) error {
+	if s == "" {
+		return nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return fmt.Errorf("invalid --%s: %w", flagName, err)
+	}
+	*dst = d
+	return nil
 }
 
 // parseBandwidth parses bandwidth strings like "56kbit", "1mbit", "100KB"
@@ -428,23 +334,59 @@ func parseBandwidth(s string) (int64, error) {
 	return int64(bits / 8), nil // Convert bits to bytes
 }
 
-func run(cfg *Config) int {
-	// Check if stdin is a terminal
-	stdinIsTerminal := term.IsTerminal(int(os.Stdin.Fd()))
-
-	// Get terminal size (use defaults if stdin is not a terminal)
-	var width, height int
-	if stdinIsTerminal {
-		var err error
-		width, height, err = term.GetSize(int(os.Stdin.Fd()))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not get terminal size: %v (using 80x24)\n", err)
-			width, height = 80, 24
+// getTerminalSize returns the terminal dimensions, or defaults if unavailable.
+func getTerminalSize() (width, height int) {
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		w, h, err := term.GetSize(int(os.Stdin.Fd()))
+		if err == nil {
+			return w, h
 		}
-	} else {
-		// Default terminal size when stdin is a pipe
-		width, height = 80, 24
+		fmt.Fprintf(os.Stderr, "warning: could not get terminal size: %v (using %dx%d)\n", err, defaultTermCols, defaultTermRows)
 	}
+	return defaultTermCols, defaultTermRows
+}
+
+// makeShaperConfigs creates upstream and downstream shaper configurations from CLI config.
+func makeShaperConfigs(cfg *Config) (up, down ShaperConfig) {
+	up = ShaperConfig{
+		Delay:     cfg.UpDelay,
+		Jitter:    cfg.UpJitter,
+		Rate:      cfg.UpRate,
+		ChunkSize: cfg.ChunkSize,
+		FrameTime: cfg.FrameTime,
+		Seed:      cfg.Seed,
+	}
+	down = ShaperConfig{
+		Delay:     cfg.DownDelay,
+		Jitter:    cfg.DownJitter,
+		Rate:      cfg.DownRate,
+		ChunkSize: cfg.ChunkSize,
+		FrameTime: cfg.FrameTime,
+		Seed:      cfg.Seed + 1, // Different seed for each direction
+	}
+	return up, down
+}
+
+// waitWithTimeout waits for a WaitGroup with a timeout.
+// Returns true if all goroutines finished, false if timeout.
+func waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
+func run(cfg *Config) int {
+	// Get terminal info
+	stdinIsTerminal := term.IsTerminal(int(os.Stdin.Fd()))
+	width, height := getTerminalSize()
 
 	// Create the command
 	cmd := exec.Command(cfg.Command[0], cfg.Command[1:]...)
@@ -495,22 +437,7 @@ func run(cfg *Config) int {
 	var wg sync.WaitGroup
 
 	// Shaper configs
-	upConfig := ShaperConfig{
-		Delay:     cfg.UpDelay,
-		Jitter:    cfg.UpJitter,
-		Rate:      cfg.UpRate,
-		ChunkSize: cfg.ChunkSize,
-		FrameTime: cfg.FrameTime,
-		Seed:      cfg.Seed,
-	}
-	downConfig := ShaperConfig{
-		Delay:     cfg.DownDelay,
-		Jitter:    cfg.DownJitter,
-		Rate:      cfg.DownRate,
-		ChunkSize: cfg.ChunkSize,
-		FrameTime: cfg.FrameTime,
-		Seed:      cfg.Seed + 1, // Different seed for each direction
-	}
+	upConfig, downConfig := makeShaperConfigs(cfg)
 
 	// Upstream: stdin -> shaper -> PTY
 	wg.Add(1)
@@ -567,7 +494,6 @@ func run(cfg *Config) int {
 
 	// Wait for downstream shaper to finish naturally (it will get EOF from PTY)
 	// with a generous timeout for rate-limited connections
-	drainTimeout := 30 * time.Second
 	select {
 	case <-downDone:
 		// Downstream finished draining
@@ -577,16 +503,7 @@ func run(cfg *Config) int {
 	}
 
 	// Wait for all goroutines with a short timeout
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(500 * time.Millisecond):
-		// Goroutines didn't exit in time, proceed anyway
-	}
+	waitWithTimeout(&wg, goroutineExitWait)
 
 	// Now close PTY (for cleanup)
 	ptmx.Close()

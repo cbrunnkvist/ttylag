@@ -285,6 +285,22 @@ Because you can't remember "ptylag", and if you do, pronouncing that causes you 
 
 N.b. the marketing team also considered calling it "lagshim" or "stutty" (ha-ha) but, come on, this is not a Ruby project ;-)
 
+### What is `--bits-per-byte` for?
+
+For **pedants and retro hardware enthusiasts**.
+
+The default `10` assumes 8N1 serial framing (1 start + 8 data + 1 stop bit). If you're simulating actual hardware that uses 7-bit data or different framing:
+
+```bash
+# 9600 bps 7N0 (some old hardware consoles)
+ttylag --serial 9600 --bits-per-byte 8 -- my-app
+
+# 9600 bps 7E1 (even parity)
+ttylag --serial 9600 --bits-per-byte 10 -- my-app
+```
+
+Most users can ignore this flag entirely.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.

@@ -10,6 +10,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// Buffer and limit sizes
+const (
+	readBufferSize  = 4096      // Size of read buffer for source data
+	readChanBuffer  = 16        // Channel buffer for read data
+	maxBurstSize    = 65536     // Cap burst at 64KB to prevent huge initial bursts
+	initialWakeTime = time.Hour // Initial wake timer (will be reset immediately)
+)
+
 // ShaperConfig holds configuration for one direction of traffic shaping.
 type ShaperConfig struct {
 	Delay     time.Duration // Base delay applied to all data
@@ -59,8 +67,8 @@ func NewShaper(cfg ShaperConfig) *Shaper {
 				burst = 1
 			}
 			// Cap burst at 64KB to prevent huge initial bursts
-			if burst > 65536 {
-				burst = 65536
+			if burst > maxBurstSize {
+				burst = maxBurstSize
 			}
 		}
 		limiter = rate.NewLimiter(rate.Limit(cfg.Rate), burst)
@@ -113,13 +121,13 @@ func (s *Shaper) splitChunks(data []byte) [][]byte {
 // The function handles delay, jitter, rate limiting, chunking, and framing.
 func (s *Shaper) Run(ctx context.Context, src io.Reader, dst io.Writer) error {
 	// Channel for data read from source
-	readCh := make(chan []byte, 16)
+	readCh := make(chan []byte, readChanBuffer)
 	readErr := make(chan error, 1)
 
 	// Start reader goroutine
 	go func() {
 		defer close(readCh)
-		buf := make([]byte, 4096)
+		buf := make([]byte, readBufferSize)
 		for {
 			n, err := src.Read(buf)
 			if n > 0 {
@@ -156,7 +164,7 @@ func (s *Shaper) Run(ctx context.Context, src io.Reader, dst io.Writer) error {
 	}
 
 	// Timer for waking up when next chunk is due
-	wakeTimer := time.NewTimer(time.Hour)
+	wakeTimer := time.NewTimer(initialWakeTime)
 	defer wakeTimer.Stop()
 
 	for {
