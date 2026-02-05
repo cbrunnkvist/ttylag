@@ -4,6 +4,8 @@ A userspace PTY wrapper that simulates laggy/slow network connections for local 
 
 Make any local terminal app feel like it's running over SSH on a bad connection, a 9600 baud serial line, or a flaky mobile network.
 
+**Author:** Conny Brunnkvist <cbrunnkvist@gmail.com>
+
 ## Installation
 
 ```bash
@@ -285,4 +287,4 @@ N.b. the marketing team also considered calling it "lagshim" or "stutty" (ha-ha)
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details.
