@@ -430,16 +430,20 @@ func parseBandwidth(s string) (int64, error) {
 
 func run(cfg *Config) int {
 	// Check if stdin is a terminal
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		fmt.Fprintln(os.Stderr, "error: stdin is not a terminal")
-		return 1
-	}
+	stdinIsTerminal := term.IsTerminal(int(os.Stdin.Fd()))
 
-	// Get current terminal size
-	width, height, err := term.GetSize(int(os.Stdin.Fd()))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error getting terminal size: %v\n", err)
-		return 1
+	// Get terminal size (use defaults if stdin is not a terminal)
+	var width, height int
+	if stdinIsTerminal {
+		var err error
+		width, height, err = term.GetSize(int(os.Stdin.Fd()))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not get terminal size: %v (using 80x24)\n", err)
+			width, height = 80, 24
+		}
+	} else {
+		// Default terminal size when stdin is a pipe
+		width, height = 80, 24
 	}
 
 	// Create the command
@@ -455,25 +459,35 @@ func run(cfg *Config) int {
 		return 1
 	}
 
-	// Set terminal to raw mode
-	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
-	if err != nil {
-		ptmx.Close()
-		fmt.Fprintf(os.Stderr, "error setting raw mode: %v\n", err)
-		return 1
+	// Set terminal to raw mode (only if stdin is a terminal)
+	var oldState *term.State
+	if stdinIsTerminal {
+		var err error
+		oldState, err = term.MakeRaw(int(os.Stdin.Fd()))
+		if err != nil {
+			ptmx.Close()
+			fmt.Fprintf(os.Stderr, "error setting raw mode: %v\n", err)
+			return 1
+		}
 	}
 
-	// Ensure terminal restoration on exit
+	// Ensure terminal restoration on exit (only if we changed it)
 	restoreTerminal := func() {
-		term.Restore(int(os.Stdin.Fd()), oldState)
+		if oldState != nil {
+			term.Restore(int(os.Stdin.Fd()), oldState)
+		}
 	}
 	defer restoreTerminal()
 
-	// Context for coordinating shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Separate contexts for upstream and downstream
+	// Upstream can be cancelled immediately when child exits
+	// Downstream needs to drain its buffer before stopping
+	upCtx, upCancel := context.WithCancel(context.Background())
+	downCtx, downCancel := context.WithCancel(context.Background())
+	defer upCancel()
+	defer downCancel()
 
-	// Signal handling
+	// Signal handling (uses upstream context for signals)
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGWINCH)
 
@@ -503,15 +517,17 @@ func run(cfg *Config) int {
 	go func() {
 		defer wg.Done()
 		upShaper := NewShaper(upConfig)
-		upShaper.Run(ctx, os.Stdin, ptmx)
+		upShaper.Run(upCtx, os.Stdin, ptmx)
 	}()
 
 	// Downstream: PTY -> shaper -> stdout
+	downDone := make(chan struct{})
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer close(downDone)
 		downShaper := NewShaper(downConfig)
-		downShaper.Run(ctx, ptmx, os.Stdout)
+		downShaper.Run(downCtx, ptmx, os.Stdout)
 	}()
 
 	// Signal handler goroutine
@@ -520,7 +536,7 @@ func run(cfg *Config) int {
 		defer wg.Done()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-upCtx.Done():
 				return
 			case sig := <-sigCh:
 				switch sig {
@@ -545,12 +561,22 @@ func run(cfg *Config) int {
 
 	// Wait for child process
 	waitErr := cmd.Wait()
-	cancel() // Signal all goroutines to stop
 
-	// Close PTY master to unblock readers
-	ptmx.Close()
+	// Cancel upstream context to stop upstream shaper (which may be blocked on stdin)
+	upCancel()
 
-	// Wait for goroutines with timeout
+	// Wait for downstream shaper to finish naturally (it will get EOF from PTY)
+	// with a generous timeout for rate-limited connections
+	drainTimeout := 30 * time.Second
+	select {
+	case <-downDone:
+		// Downstream finished draining
+	case <-time.After(drainTimeout):
+		// Timeout - cancel downstream and proceed
+		downCancel()
+	}
+
+	// Wait for all goroutines with a short timeout
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -561,6 +587,9 @@ func run(cfg *Config) int {
 	case <-time.After(500 * time.Millisecond):
 		// Goroutines didn't exit in time, proceed anyway
 	}
+
+	// Now close PTY (for cleanup)
+	ptmx.Close()
 
 	// Restore terminal before exiting
 	restoreTerminal()

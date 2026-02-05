@@ -267,7 +267,12 @@ func (s *Shaper) writeWithRateLimit(ctx context.Context, dst io.Writer, data []b
 }
 
 // drainQueue writes any remaining data in the delay queue and frame buffer.
+// This function ignores context cancellation to ensure all buffered data is written.
 func (s *Shaper) drainQueue(ctx context.Context, dst io.Writer, queue []delayedChunk, frameBuffer []byte) error {
+	// Use a background context for draining - we want to finish writing
+	// even if the main context is cancelled
+	drainCtx := context.Background()
+
 	// Wait for all delayed chunks to become ready and write them
 	for len(queue) > 0 {
 		chunk := queue[0]
@@ -276,11 +281,7 @@ func (s *Shaper) drainQueue(ctx context.Context, dst io.Writer, queue []delayedC
 		// Wait until due time
 		waitTime := time.Until(chunk.dueTime)
 		if waitTime > 0 {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(waitTime):
-			}
+			time.Sleep(waitTime)
 		}
 
 		// Apply chunking and write
@@ -289,7 +290,7 @@ func (s *Shaper) drainQueue(ctx context.Context, dst io.Writer, queue []delayedC
 			if s.config.FrameTime > 0 {
 				frameBuffer = append(frameBuffer, piece...)
 			} else {
-				if err := s.writeWithRateLimit(ctx, dst, piece); err != nil {
+				if err := s.writeWithRateLimit(drainCtx, dst, piece); err != nil {
 					return err
 				}
 			}
@@ -298,7 +299,7 @@ func (s *Shaper) drainQueue(ctx context.Context, dst io.Writer, queue []delayedC
 
 	// Write any remaining frame buffer
 	if len(frameBuffer) > 0 {
-		if err := s.writeWithRateLimit(ctx, dst, frameBuffer); err != nil {
+		if err := s.writeWithRateLimit(drainCtx, dst, frameBuffer); err != nil {
 			return err
 		}
 	}

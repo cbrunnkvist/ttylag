@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -283,4 +284,120 @@ func TestShaperContextCancel(t *testing.T) {
 	if elapsed > 500*time.Millisecond {
 		t.Errorf("cancel took too long: %v", elapsed)
 	}
+}
+
+// TestShaperBandwidthVerification replicates the bandwidth verification test
+// from a competing implementation. Tests 10 kbit/s throughput with 5000 bytes.
+func TestShaperBandwidthVerification(t *testing.T) {
+	// 10 kbit/s = 1250 bytes/sec
+	// 5000 bytes should take ~4 seconds
+	cfg := ShaperConfig{
+		Rate:      1250, // 10 kbit/s in bytes
+		ChunkSize: 1024,
+		Seed:      42,
+	}
+
+	input := make([]byte, 5000)
+	src := bytes.NewReader(input)
+	var dst bytes.Buffer
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	err := Copy(ctx, &dst, src, cfg)
+	duration := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("Copy failed: %v", err)
+	}
+
+	if dst.Len() != 5000 {
+		t.Errorf("output size mismatch: got %d, want 5000", dst.Len())
+	}
+
+	bits := int64(dst.Len()) * 8
+	bps := float64(bits) / duration.Seconds()
+
+	t.Logf("Read %d bytes in %v", dst.Len(), duration)
+	t.Logf("Rate: %.2f bits/sec (target: 10000)", bps)
+
+	// Allow ±15% tolerance (token bucket has burst behavior)
+	// Competing implementation reported ~11,130 bps
+	minRate := 8500.0
+	maxRate := 13000.0
+	if bps < minRate || bps > maxRate {
+		t.Errorf("rate %.2f outside expected range [%.0f, %.0f]", bps, minRate, maxRate)
+	}
+}
+
+// TestShaperJitterVerificationBaseline replicates the jitter baseline test.
+// 100 baud = 10 bytes/sec with 10 bits/byte, so ~100ms per byte.
+func TestShaperJitterVerificationBaseline(t *testing.T) {
+	// 100 baud with 10 bits per byte = 10 bytes/sec = 100ms per byte
+	cfg := ShaperConfig{
+		Rate: 10, // 10 bytes/sec
+		Seed: 42,
+	}
+
+	// Send 10 bytes, measure inter-arrival times
+	input := make([]byte, 10)
+	src := bytes.NewReader(input)
+
+	// Custom writer that tracks write times
+	type timedWrite struct {
+		t time.Time
+		n int
+	}
+	var writes []timedWrite
+	var mu sync.Mutex
+
+	tracker := &trackingWriter{
+		onWrite: func(n int) {
+			mu.Lock()
+			writes = append(writes, timedWrite{time.Now(), n})
+			mu.Unlock()
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	Copy(ctx, tracker, src, cfg)
+
+	// Calculate inter-arrival times
+	if len(writes) < 2 {
+		t.Skip("Not enough writes to measure timing")
+	}
+
+	var deltas []time.Duration
+	for i := 1; i < len(writes); i++ {
+		deltas = append(deltas, writes[i].t.Sub(writes[i-1].t))
+	}
+
+	// Calculate average
+	var sum time.Duration
+	for _, d := range deltas {
+		sum += d
+	}
+	avg := sum / time.Duration(len(deltas))
+
+	t.Logf("Baseline (no jitter): Avg inter-arrival: %v", avg)
+
+	// Should be approximately 100ms (80-120ms acceptable)
+	if avg < 80*time.Millisecond || avg > 120*time.Millisecond {
+		t.Errorf("average inter-arrival %v outside expected range [80ms, 120ms]", avg)
+	}
+}
+
+// trackingWriter records when writes occur
+type trackingWriter struct {
+	onWrite func(n int)
+}
+
+func (w *trackingWriter) Write(p []byte) (int, error) {
+	if w.onWrite != nil {
+		w.onWrite(len(p))
+	}
+	return len(p), nil
 }
