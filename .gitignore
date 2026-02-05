@@ -1,0 +1,32 @@
+# Compiled binaries (project name and any subdirectory)
+ttylag
+**/timing_analysis
+
+# Go build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage.out
+coverage.html
+
+# Project specific
+.sisyphus/
