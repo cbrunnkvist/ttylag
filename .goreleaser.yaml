@@ -54,6 +54,10 @@ brews:
     homepage: "https://github.com/cbrunnkvist/ttylag"
     description: "Userspace PTY wrapper that simulates laggy/slow network connections"
     license: "MIT"
+    custom_install: |
+      system "go", "build", *std_go_args(ldflags: "-s -w")
+      system "go", "run", "cmd/genman/main.go", "-o", "ttylag.1"
+      man1.install "ttylag.1"
     test: |
       system "#{bin}/ttylag", "--version"
     commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
