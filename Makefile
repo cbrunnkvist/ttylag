@@ -34,3 +34,12 @@ release:
 	fi
 	git tag -a $(TAG) -m "Release $(TAG)"
 	git push origin $(TAG)
+
+brew-sha256:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make brew-sha256 VERSION=0.1.2"; \
+		echo "Calculate SHA256 for a GitHub release tarball"; \
+		exit 1; \
+	fi
+	@echo "SHA256 for v$(VERSION):"
+	@curl -sL https://github.com/cbrunnkvist/ttylag/archive/refs/tags/$(VERSION).tar.gz | shasum -a 256 | cut -d' ' -f1

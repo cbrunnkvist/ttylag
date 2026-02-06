@@ -43,3 +43,17 @@ changelog:
     exclude:
       - '^docs:'
       - '^test:'
+
+brews:
+  - name: ttylag
+    repository:
+      owner: cbrunnkvist
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/cbrunnkvist/ttylag"
+    description: "Userspace PTY wrapper that simulates laggy/slow network connections"
+    license: "MIT"
+    test: |
+      system "#{bin}/ttylag", "--version"
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
