@@ -2,9 +2,9 @@
 
 A userspace PTY wrapper that simulates laggy/slow network connections for local terminal applications.
 
-Make any local terminal app feel like it's running over SSH on a bad connection, a 9600 baud serial line, or a flaky mobile network.
+Make any local terminal app feel like it's running over SSH on a bad connection, a 9600 baud serial line, or a flaky mobile network. 
 
-**Author:** Conny Brunnkvist <cbrunnkvist@gmail.com>
+Add some _slack_ to both your standard output _and_ standard input, today! ([demo](#demo))
 
 ## Installation
 
@@ -137,6 +137,10 @@ ttylag --rtt 100ms --frame 40ms --chunk 32 -- bash
 # Use a fixed seed for reproducible behavior
 ttylag --rtt 200ms --jitter 50ms --seed 12345 -- bash
 ```
+
+### Demo
+
+[![asciicast](https://asciinema.org/a/781701.svg)](https://asciinema.org/a/781701)
 
 ## How It Works
 
@@ -273,6 +277,8 @@ ttylag --serial 9600 --bits-per-byte 10 -- my-app
 
 Most users can ignore this flag entirely.
 
-## License
+## License and attribution
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+(c) 2026 Conny Brunnkvist <cbrunnkvist@gmail.com>
