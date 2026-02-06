@@ -11,13 +11,13 @@ test:
 
 release:
 	@if [ -z "$(TAG)" ]; then \
-		echo "Error: TAG= env var not set (e.g. make release TAG=v0.1.0)"; \
+		echo "Error: TAG= env var not set (e.g. make release TAG=0.1.0)"; \
 		printf "Latest release: "; \
 		git describe --tags --abbrev=0 2>/dev/null || echo "none"; \
 		exit 1; \
 	fi
-	@if [[ ! "$(TAG)" =~ ^v ]]; then \
-		echo "Error: TAG must start with 'v' (e.g. v0.1.0)"; \
+	@if [[ ! "$(TAG)" =~ ^[0-9]+\. ]]; then \
+		echo "Error: TAG must start with a digit followed by a period (e.g. 0.1.0)"; \
 		exit 1; \
 	fi
 	@if git rev-parse "$(TAG)" >/dev/null 2>&1; then \
