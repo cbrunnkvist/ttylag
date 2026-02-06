@@ -1,6 +1,6 @@
 module github.com/user/ttylag
 
-go 1.25.6
+go 1.23.0
 
 require (
 	github.com/creack/pty v1.1.24
