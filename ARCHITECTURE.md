@@ -4,7 +4,7 @@ High-level architectural overview for new developers.
 
 ## Overview
 
-ttylag is a PTY (pseudo-terminal) wrapper that simulates slow/laggy network connections. It sits between your terminal and a child process, applying configurable delays and bandwidth limits.
+ttylag is a PTY (pseudo-terminal) wrapper that simulates slow/laggy network connections or the archetypal serial console experience. It sits between your terminal and a child process, applying configurable delays and bandwidth limits.
 
 ## 1. Data Flow Diagram
 

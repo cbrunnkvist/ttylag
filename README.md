@@ -58,77 +58,49 @@ The `--` separator is required before the command.
 
 ### Flags
 
-| Flag | Short | Description | Example |
-|------|-------|-------------|---------|
-| `--rtt` | | Round-trip time (split evenly between up/down) | `--rtt 200ms` |
-| `--up-delay` | | Fixed upstream delay (user→child) | `--up-delay 100ms` |
-| `--down-delay` | | Fixed downstream delay (child→user) | `--down-delay 100ms` |
-| `--jitter` | `-j` | Jitter for both directions | `-j 50ms` |
-| `--up-jitter` | | Upstream jitter only | `--up-jitter 30ms` |
-| `--down-jitter` | | Downstream jitter only | `--down-jitter 30ms` |
-| `--up` | `-u` | Upstream bandwidth limit | `-u 56kbit` |
-| `--down` | `-d` | Downstream bandwidth limit | `-d 1mbit` |
-| `--chunk` | `-c` | Max bytes per write | `-c 64` |
-| `--frame` | | Coalesce output interval | `--frame 40ms` |
-| `--serial` | `-s` | Serial port speed (convenience) | `-s 9600` |
-| `--bits-per-byte` | | Bits per byte for serial (default 10) | `--bits-per-byte 10` |
-| `--seed` | | Random seed for jitter | `--seed 42` |
-| `--profile` | `-p` | Use preset profile | `-p dialup` |
-| `--help` | `-h` | Show help | |
-| `--version` | `-v` | Show version | |
+```text
+      --rtt string           Round-trip time (split evenly up/down)
+      --up-delay string      Upstream delay (user→child)
+      --down-delay string    Downstream delay (child→user)
+  -j, --jitter string        Jitter for both directions
+      --up-jitter string     Upstream jitter
+      --down-jitter string   Downstream jitter
+  -u, --up string            Upstream bandwidth limit (e.g., 56kbit)
+  -d, --down string          Downstream bandwidth limit
+  -c, --chunk int            Max bytes per write (0=unlimited)
+      --frame string         Coalesce output interval (e.g., 40ms)
+  -s, --serial int           Serial port speed in bps (e.g., 9600)
+      --bits-per-byte int    Bits per byte for serial (default 10 for 8N1) (default 10)
+      --seed int             Random seed for jitter (0=random)
+  -p, --profile string       Connection profile (see below)
+  -h, --help                 Show help
+  -v, --version              Show version
+  -L, --list-profiles        List available profiles
 
-### Bandwidth Formats
-
-Bandwidth values use SI units (k=1000, not 1024):
-
-- `100` or `100bps` - 100 bits/second
-- `56kbit` or `56k` - 56,000 bits/second
-- `1mbit` or `1m` - 1,000,000 bits/second
-- `100KB` - 100,000 bytes/second
+Bandwidth formats: 100, 100bps, 56kbit, 56k, 1mbit, 100KB
+  k=1000 (SI units), not 1024
+```
 
 ### Preset Profiles
 
-#### Serial
-| Profile | Down | Up | Description |
-|---------|------|-----|-------------|
-| `9600` | 9600bps | 9600bps | 9600 baud serial |
-| `2400` | 2400bps | 2400bps | 2400 baud serial |
-
-#### Dial-up
-| Profile | RTT | Jitter | Down | Up | Description |
-|---------|-----|--------|------|-----|-------------|
-| `dialup` | 150ms | 30ms | 56kbit | 33.6kbit | 56k modem |
-
-#### Mobile
-| Profile | RTT | Jitter | Down | Up | Description |
-|---------|-----|--------|------|-----|-------------|
-| `edge` | 500ms | 100ms | 200kbit | 100kbit | 2G/EDGE |
-| `3g` | 200ms | 50ms | 1mbit | 384kbit | 3G |
-| `lte` | 50ms | 15ms | 20mbit | 5mbit | Good LTE |
-| `lte-poor` | 150ms | 50ms | 2mbit | 500kbit | Poor LTE signal |
-
-#### Wired
-| Profile | RTT | Jitter | Down | Up | Description |
-|---------|-----|--------|------|-----|-------------|
-| `dsl` | 50ms | 10ms | 8mbit | 1mbit | Basic DSL |
-| `cable` | 30ms | 5ms | 50mbit | 5mbit | Cable modem |
-
-#### Satellite
-| Profile | RTT | Jitter | Down | Up | Description |
-|---------|-----|--------|------|-----|-------------|
-| `satellite` | 600ms | 50ms | 25mbit | 5mbit | Modern (Starlink-ish) |
-| `satellite-geo` | 700ms | 100ms | 10mbit | 2mbit | Traditional VSAT |
-
-#### WiFi
-| Profile | RTT | Jitter | Down | Up | Description |
-|---------|-----|--------|------|-----|-------------|
-| `wifi-poor` | 80ms | 40ms | 2mbit | 1mbit | Poor WiFi |
-| `wifi-bad` | 200ms | 100ms | 500kbit | 250kbit | Very bad WiFi |
-
-#### Other
-| Profile | RTT | Jitter | Down | Up | Description |
-|---------|-----|--------|------|-----|-------------|
-| `intercontinental` | 250ms | 30ms | 10mbit | 5mbit | Long-distance (US↔Asia) |
+```text
+NAME                   RTT    JITTER        DOWN          UP  MODE
+----                   ---    ------        ----          --  ----
+2400                     -         -       2kbit       2kbit  serial
+3g                   200ms      50ms       1mbit     384kbit  packet
+9600                     -         -       8kbit       8kbit  serial
+cable                 30ms       5ms      50mbit       5mbit  packet
+dialup               150ms      30ms      56kbit      34kbit  packet
+dsl                   50ms      10ms       8mbit       1mbit  packet
+edge                 500ms     100ms     200kbit     100kbit  packet
+intercontinental     250ms      30ms      10mbit       5mbit  packet
+lte                   50ms      15ms      20mbit       5mbit  packet
+lte-poor             150ms      50ms       2mbit     500kbit  packet
+satellite            600ms      50ms      25mbit       5mbit  packet
+satellite-geo        700ms     100ms      10mbit       2mbit  packet
+wifi-bad             200ms     100ms     500kbit     250kbit  packet
+wifi-poor             80ms      40ms       2mbit       1mbit  packet
+```
 
 ## Examples
 
@@ -170,8 +142,8 @@ ttylag --rtt 200ms --jitter 50ms --seed 12345 -- bash
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                   User's Terminal                        │
-│               (stdin/stdout in raw mode)                 │
+│                   User's Terminal                       │
+│               (stdin/stdout in raw mode)                │
 └─────────────────────────────────────────────────────────┘
                 │                          ▲
                 │ keystrokes               │ display
@@ -187,13 +159,13 @@ ttylag --rtt 200ms --jitter 50ms --seed 12345 -- bash
                 │                          ▲
                 ▼                          │
 ┌─────────────────────────────────────────────────────────┐
-│                    PTY Master (ttylag)                   │
+│                    PTY Master (ttylag)                  │
 └─────────────────────────────────────────────────────────┘
                 │                          ▲
                 ▼                          │
 ┌─────────────────────────────────────────────────────────┐
-│              PTY Slave (child process)                   │
-│              e.g., bash, htop, vim                       │
+│              PTY Slave (child process)                  │
+│              e.g., bash, htop, vim                      │
 └─────────────────────────────────────────────────────────┘
 ```
 
