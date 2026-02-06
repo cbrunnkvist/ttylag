@@ -10,15 +10,19 @@ test:
 	./smoke_test.sh
 
 release:
-	@if [ -z "$(VERSION)" ]; then 
-		echo "Error: VERSION= env var not set (e.g. make release VERSION=v0.1.0)"; 
-		printf "Latest release: "; 
-		git describe --tags --abbrev=0 2>/dev/null || echo "none"; 
-		exit 1; 
+	@if [ -z "$(TAG)" ]; then \
+		echo "Error: TAG= env var not set (e.g. make release TAG=v0.1.0)"; \
+		printf "Latest release: "; \
+		git describe --tags --abbrev=0 2>/dev/null || echo "none"; \
+		exit 1; \
 	fi
-	@if git rev-parse "$(VERSION)" >/dev/null 2>&1; then 
-		echo "Error: Tag $(VERSION) already exists"; 
-		exit 1; 
+	@if [[ ! "$(TAG)" =~ ^v ]]; then \
+		echo "Error: TAG must start with 'v' (e.g. v0.1.0)"; \
+		exit 1; \
 	fi
-	git tag -a $(VERSION) -m "Release $(VERSION)"
-	git push origin $(VERSION)
+	@if git rev-parse "$(TAG)" >/dev/null 2>&1; then \
+		echo "Error: Tag $(TAG) already exists"; \
+		exit 1; \
+	fi
+	git tag -a $(TAG) -m "Release $(TAG)"
+	git push origin $(TAG)
