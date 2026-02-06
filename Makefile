@@ -5,6 +5,14 @@ BINARY_NAME=ttylag
 build:
 	go build -o $(BINARY_NAME) .
 
+man:
+	go run cmd/genman/main.go > ttylag.1
+
+check-man:
+	go run cmd/genman/main.go > ttylag.1.tmp
+	diff -u ttylag.1 ttylag.1.tmp || (echo "Error: ttylag.1 is out of date. Run 'make man' and commit the changes." && rm ttylag.1.tmp && exit 1)
+	@rm ttylag.1.tmp
+
 test:
 	go test -v ./...
 	./smoke_test.sh

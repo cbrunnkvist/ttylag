@@ -4,6 +4,8 @@ This project is managed with the help of AI agents. To maintain consistency and 
 
 1. **Follow the Style Guide**: Adhere to the formatting and structural conventions seen in the existing codebase.
 2. **Update Documentation**: When adding features or changing behavior, update `README.md`, `DESIGN.md`, and `ttylag.1` (man page).
+   - Use `make man` to regenerate the man page from `cmd/genman/main.go`.
+   - CI will fail if `ttylag.1` does not match the output of `make man`.
 3. **README Maintenance**:
    - The "Flags" section in `README.md` must match the verbatim output of `ttylag --help`.
    - The "Preset Profiles" section in `README.md` must match the verbatim output of `ttylag --list-profiles`.
