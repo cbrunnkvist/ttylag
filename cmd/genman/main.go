@@ -7,11 +7,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 )
 
 func main() {
-	date := time.Now().Format("January 2006")
+	// Use a fixed date for reproducible builds/CI
+	date := "February 2026"
 
 	manpage := fmt.Sprintf(`.TH TTYLAG 1 "%s" "ttylag 0.1.0" "User Commands"
 .SH NAME
