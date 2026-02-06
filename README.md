@@ -13,9 +13,6 @@ Primary installation: Homebrew (recommended)
 ```bash
 # Tap the Homebrew formula and install ttylag
 brew tap cbrunnkvist/tap && brew install ttylag
-
-# Core formula submission is coming soon; once available you can simply:
-# brew install ttylag
 ```
 
 Alternatives (still supported):
