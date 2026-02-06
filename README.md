@@ -8,17 +8,35 @@ Add some _slack_ to both your standard output _and_ standard input, today! ([dem
 
 ## Installation
 
+Primary installation: Homebrew (recommended)
+
+```bash
+# Tap the Homebrew formula and install ttylag
+brew tap cbrunnkvist/tap && brew install ttylag
+
+# Core formula submission is coming soon; once available you can simply:
+# brew install ttylag
+```
+
+Alternatives (still supported):
+
+- Go install:
+
 ```bash
 go install github.com/user/ttylag@latest
 ```
 
-Or build from source:
+- Build from source:
 
 ```bash
 git clone https://github.com/user/ttylag
 cd ttylag
 go build -o ttylag .
 ```
+
+Notes:
+- The Homebrew formula is defined at Formula/ttylag.rb and the tap is cbrunnkvist/tap (tested).
+- If you prefer not to use Homebrew, the go install and build-from-source methods remain available.
 
 ### Man Page
 

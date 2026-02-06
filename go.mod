@@ -1,4 +1,4 @@
-module github.com/user/ttylag
+module github.com/cbrunnkvist/ttylag
 
 go 1.24.0
 
