@@ -1,8 +1,8 @@
 class Ttylag < Formula
   desc "Userspace PTY wrapper that simulates laggy/slow network connections"
   homepage "https://github.com/cbrunnkvist/ttylag"
-  url "https://github.com/cbrunnkvist/ttylag/archive/refs/tags/0.1.1.tar.gz"
-  sha256 "5cf3012601ca611dd3bafc9279e329234d75a6be152d81e261e02f0db13b4d16"
+  url "https://github.com/cbrunnkvist/ttylag/archive/refs/tags/0.1.2.tar.gz"
+  sha256 "33fe94fcbdd6429eff2bd34ba141a2791581afc8e92c6c75258743498841d9ac"
   license "MIT"
 
   depends_on "go" => :build
