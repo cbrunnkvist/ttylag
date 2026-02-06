@@ -3,18 +3,24 @@
 
 package main
 
-import "time"
+import (
+	"fmt"
+	"sort"
+	"time"
+)
 
 // profiles defines preset configurations for common connection types.
 var profiles = map[string]Config{
-	// Serial connections
+	// Serial connections (use wire serialization for authentic feel)
 	"9600": {
-		UpRate:   960, // 9600 baud / 10 bits per byte
-		DownRate: 960,
+		UpRate:     960, // 9600 baud / 10 bits per byte
+		DownRate:   960,
+		SerialMode: true,
 	},
 	"2400": {
-		UpRate:   240, // 2400 baud / 10 bits per byte
-		DownRate: 240,
+		UpRate:     240, // 2400 baud / 10 bits per byte
+		DownRate:   240,
+		SerialMode: true,
 	},
 
 	// Dial-up modems
@@ -100,4 +106,63 @@ var profiles = map[string]Config{
 		DownRate: 10000000 / 8, // 10mbit (typical VPN)
 		UpRate:   5000000 / 8,  // 5mbit
 	},
+}
+
+// formatRate formats a bytes-per-second rate as a human-readable string.
+func formatRate(bytesPerSec int64) string {
+	if bytesPerSec == 0 {
+		return "-"
+	}
+	bitsPerSec := bytesPerSec * 8
+	switch {
+	case bitsPerSec >= 1000000:
+		return fmt.Sprintf("%.0fmbit", float64(bitsPerSec)/1000000)
+	case bitsPerSec >= 1000:
+		return fmt.Sprintf("%.0fkbit", float64(bitsPerSec)/1000)
+	default:
+		return fmt.Sprintf("%dbps", bitsPerSec)
+	}
+}
+
+// formatDuration formats a duration for display, or "-" if zero.
+func formatDuration(d time.Duration) string {
+	if d == 0 {
+		return "-"
+	}
+	return d.String()
+}
+
+// printProfiles prints a table of all available profiles.
+func printProfiles() {
+	// Get sorted profile names
+	names := make([]string, 0, len(profiles))
+	for name := range profiles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// Print header
+	fmt.Println("Available profiles:")
+	fmt.Println()
+	fmt.Printf("%-16s  %8s  %8s  %10s  %10s  %s\n",
+		"NAME", "RTT", "JITTER", "DOWN", "UP", "MODE")
+	fmt.Printf("%-16s  %8s  %8s  %10s  %10s  %s\n",
+		"----", "---", "------", "----", "--", "----")
+
+	// Print each profile
+	for _, name := range names {
+		p := profiles[name]
+		mode := "packet"
+		if p.SerialMode {
+			mode = "serial"
+		}
+		fmt.Printf("%-16s  %8s  %8s  %10s  %10s  %s\n",
+			name,
+			formatDuration(p.RTT),
+			formatDuration(p.Jitter),
+			formatRate(p.DownRate),
+			formatRate(p.UpRate),
+			mode,
+		)
+	}
 }

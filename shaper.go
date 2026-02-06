@@ -20,13 +20,14 @@ const (
 
 // ShaperConfig holds configuration for one direction of traffic shaping.
 type ShaperConfig struct {
-	Delay     time.Duration // Base delay applied to all data
-	Jitter    time.Duration // Jitter range: uniform distribution [-jitter, +jitter]
-	Rate      int64         // Bytes per second (0 = unlimited)
-	Burst     int           // Token bucket burst size (0 = auto-calculate)
-	ChunkSize int           // Max bytes per write (0 = unlimited)
-	FrameTime time.Duration // Coalesce output interval (0 = disabled)
-	Seed      int64         // Random seed for jitter (0 = use current time)
+	Delay      time.Duration // Base delay applied to all data
+	Jitter     time.Duration // Jitter range: uniform distribution [-jitter, +jitter]
+	Rate       int64         // Bytes per second (0 = unlimited)
+	Burst      int           // Token bucket burst size (0 = auto-calculate)
+	ChunkSize  int           // Max bytes per write (0 = unlimited)
+	FrameTime  time.Duration // Coalesce output interval (0 = disabled)
+	Seed       int64         // Random seed for jitter (0 = use current time)
+	SerialMode bool          // Use wire serialization model (smooth) vs token bucket (bursty)
 }
 
 // delayedChunk represents data waiting to be released after its due time.
@@ -37,11 +38,16 @@ type delayedChunk struct {
 
 // Shaper applies delay, jitter, rate limiting, chunking, and framing to a byte stream.
 // It reads from an input channel and writes shaped data to an output writer.
+//
+// Two rate limiting modes are supported:
+//   - Token bucket (default): Bursty output, feels like packet networks
+//   - Wire serialization (SerialMode): Smooth byte-by-byte output, feels like serial links
 type Shaper struct {
-	config  ShaperConfig
-	rng     *rand.Rand
-	limiter *rate.Limiter
-	mu      sync.Mutex
+	config     ShaperConfig
+	rng        *rand.Rand
+	limiter    *rate.Limiter // Used in token bucket mode
+	wireFreeAt time.Time     // Used in serial mode: when the wire becomes free
+	mu         sync.Mutex
 }
 
 // NewShaper creates a new Shaper with the given configuration.
@@ -53,9 +59,10 @@ func NewShaper(cfg ShaperConfig) *Shaper {
 	}
 	rng := rand.New(rand.NewSource(seed))
 
-	// Initialize rate limiter if rate is set
+	// Initialize rate limiter if rate is set and NOT in serial mode
+	// Serial mode uses wire serialization instead of token bucket
 	var limiter *rate.Limiter
-	if cfg.Rate > 0 {
+	if cfg.Rate > 0 && !cfg.SerialMode {
 		// Calculate burst size: at least one chunk, or 100ms of data
 		burst := cfg.Burst
 		if burst == 0 {
@@ -75,9 +82,10 @@ func NewShaper(cfg ShaperConfig) *Shaper {
 	}
 
 	return &Shaper{
-		config:  cfg,
-		rng:     rng,
-		limiter: limiter,
+		config:     cfg,
+		rng:        rng,
+		limiter:    limiter,
+		wireFreeAt: time.Now(),
 	}
 }
 
@@ -244,9 +252,67 @@ func (s *Shaper) processReadyChunks(ctx context.Context, dst io.Writer, queue *[
 	return frameBuffer
 }
 
-// writeWithRateLimit writes data respecting the rate limiter.
-// If data is larger than burst size, it writes in smaller pieces.
+// writeWithRateLimit writes data respecting the configured rate limiting mode.
+// In serial mode, it uses wire serialization (smooth byte-by-byte timing).
+// In default mode, it uses token bucket (bursty output).
 func (s *Shaper) writeWithRateLimit(ctx context.Context, dst io.Writer, data []byte) error {
+	if s.config.Rate == 0 {
+		// No rate limiting
+		_, err := dst.Write(data)
+		return err
+	}
+
+	if s.config.SerialMode {
+		return s.writeWithWireSerialization(ctx, dst, data)
+	}
+	return s.writeWithTokenBucket(ctx, dst, data)
+}
+
+// writeWithWireSerialization writes data using wire serialization timing.
+// This simulates a serial link where each byte takes a fixed time to transmit,
+// producing smooth, character-by-character output.
+func (s *Shaper) writeWithWireSerialization(ctx context.Context, dst io.Writer, data []byte) error {
+	for _, b := range data {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		// Calculate when this byte can be transmitted
+		// Time per byte = 1 / Rate (in seconds)
+		byteTime := time.Duration(float64(time.Second) / float64(s.config.Rate))
+
+		s.mu.Lock()
+		now := time.Now()
+		if now.After(s.wireFreeAt) {
+			s.wireFreeAt = now
+		}
+		s.wireFreeAt = s.wireFreeAt.Add(byteTime)
+		transmitAt := s.wireFreeAt
+		s.mu.Unlock()
+
+		// Wait until it's time to transmit
+		waitTime := time.Until(transmitAt)
+		if waitTime > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(waitTime):
+			}
+		}
+
+		// Write the single byte
+		if _, err := dst.Write([]byte{b}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeWithTokenBucket writes data using token bucket rate limiting.
+// This produces bursty output typical of packet networks.
+func (s *Shaper) writeWithTokenBucket(ctx context.Context, dst io.Writer, data []byte) error {
 	if s.limiter == nil {
 		_, err := dst.Write(data)
 		return err

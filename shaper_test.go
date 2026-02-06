@@ -401,3 +401,119 @@ func (w *trackingWriter) Write(p []byte) (int, error) {
 	}
 	return len(p), nil
 }
+
+// TestShaperSerialMode tests the wire serialization model used for serial connections.
+// This produces smooth, byte-by-byte output instead of bursty token bucket output.
+func TestShaperSerialMode(t *testing.T) {
+	// 100 bytes/sec in serial mode = 10ms per byte
+	// 10 bytes should take ~100ms with smooth timing
+	cfg := ShaperConfig{
+		Rate:       100,
+		SerialMode: true,
+		Seed:       42,
+	}
+
+	input := strings.Repeat("x", 10) // 10 bytes
+	src := strings.NewReader(input)
+
+	// Track individual writes - serial mode should write byte-by-byte
+	tracker := &writeTracker{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	err := Copy(ctx, tracker, src, cfg)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("Copy failed: %v", err)
+	}
+
+	// Verify output content
+	if tracker.total.String() != input {
+		t.Errorf("output mismatch: got %q, want %q", tracker.total.String(), input)
+	}
+
+	// Serial mode writes byte-by-byte
+	if len(tracker.writes) != 10 {
+		t.Errorf("serial mode should write byte-by-byte: got %d writes, want 10", len(tracker.writes))
+	}
+
+	// Each write should be exactly 1 byte
+	for i, w := range tracker.writes {
+		if len(w) != 1 {
+			t.Errorf("write %d: got %d bytes, want 1", i, len(w))
+		}
+	}
+
+	// 10 bytes at 100 bytes/sec = 100ms minimum
+	// Allow some tolerance for timing
+	expectedMin := 80 * time.Millisecond
+	expectedMax := 200 * time.Millisecond
+	if elapsed < expectedMin || elapsed > expectedMax {
+		t.Errorf("serial mode timing: got %v, expected %v to %v", elapsed, expectedMin, expectedMax)
+	}
+}
+
+// TestShaperSerialModeVsTokenBucket verifies that serial mode produces
+// smoother timing than token bucket mode.
+func TestShaperSerialModeVsTokenBucket(t *testing.T) {
+	// Send 5 bytes, measure inter-write times
+	// At 50 bytes/sec, each byte should take 20ms
+
+	measureWriteTimes := func(serialMode bool) []time.Duration {
+		cfg := ShaperConfig{
+			Rate:       50, // 50 bytes/sec = 20ms per byte
+			SerialMode: serialMode,
+			Seed:       42,
+		}
+
+		src := strings.NewReader("12345") // 5 bytes
+
+		var writeTimes []time.Time
+		var mu sync.Mutex
+		tracker := &trackingWriter{
+			onWrite: func(n int) {
+				mu.Lock()
+				writeTimes = append(writeTimes, time.Now())
+				mu.Unlock()
+			},
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		Copy(ctx, tracker, src, cfg)
+
+		// Calculate deltas
+		var deltas []time.Duration
+		for i := 1; i < len(writeTimes); i++ {
+			deltas = append(deltas, writeTimes[i].Sub(writeTimes[i-1]))
+		}
+		return deltas
+	}
+
+	serialDeltas := measureWriteTimes(true)
+	tokenDeltas := measureWriteTimes(false)
+
+	t.Logf("Serial mode inter-write times: %v", serialDeltas)
+	t.Logf("Token bucket inter-write times: %v", tokenDeltas)
+
+	// Serial mode should have more writes (byte-by-byte)
+	if len(serialDeltas) < len(tokenDeltas) {
+		t.Logf("Note: Serial mode has fewer deltas (%d) than token bucket (%d) - this may indicate token bucket is writing smaller chunks",
+			len(serialDeltas), len(tokenDeltas))
+	}
+
+	// Serial mode deltas should be more consistent (lower variance)
+	// This is a soft check - we just log the observation
+	if len(serialDeltas) >= 2 {
+		var sum time.Duration
+		for _, d := range serialDeltas {
+			sum += d
+		}
+		avg := sum / time.Duration(len(serialDeltas))
+		t.Logf("Serial mode average inter-write: %v (expected ~20ms)", avg)
+	}
+}

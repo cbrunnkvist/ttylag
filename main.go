@@ -60,12 +60,14 @@ type Config struct {
 	// Serial mode
 	Serial      int
 	BitsPerByte int
+	SerialMode  bool // Use wire serialization model (smooth byte-by-byte) vs token bucket (bursty)
 
 	// Misc
-	Seed    int64
-	Profile string
-	Help    bool
-	Version bool
+	Seed         int64
+	Profile      string
+	Help         bool
+	Version      bool
+	ListProfiles bool
 
 	// Command to run
 	Command []string
@@ -83,6 +85,11 @@ func main() {
 
 	if cfg.Version {
 		fmt.Printf("ttylag %s\n", version)
+		os.Exit(0)
+	}
+
+	if cfg.ListProfiles {
+		printProfiles()
 		os.Exit(0)
 	}
 
@@ -134,6 +141,7 @@ func parseFlags() (*Config, error) {
 	profile := fs.StringP("profile", "p", "", "Connection profile (see below)")
 	fs.BoolVarP(&cfg.Help, "help", "h", false, "Show help")
 	fs.BoolVarP(&cfg.Version, "version", "v", false, "Show version")
+	fs.BoolVarP(&cfg.ListProfiles, "list-profiles", "L", false, "List available profiles")
 
 	// Custom usage
 	fs.Usage = func() {
@@ -188,6 +196,7 @@ func parseFlags() (*Config, error) {
 		cfg.Jitter = p.Jitter
 		cfg.UpRate = p.UpRate
 		cfg.DownRate = p.DownRate
+		cfg.SerialMode = p.SerialMode
 	}
 
 	// Parse duration flags
@@ -237,6 +246,8 @@ func parseFlags() (*Config, error) {
 		if cfg.DownRate == 0 {
 			cfg.DownRate = bytesPerSec
 		}
+		// Serial mode uses wire serialization model for authentic feel
+		cfg.SerialMode = true
 	}
 
 	// Other values
@@ -349,20 +360,22 @@ func getTerminalSize() (width, height int) {
 // makeShaperConfigs creates upstream and downstream shaper configurations from CLI config.
 func makeShaperConfigs(cfg *Config) (up, down ShaperConfig) {
 	up = ShaperConfig{
-		Delay:     cfg.UpDelay,
-		Jitter:    cfg.UpJitter,
-		Rate:      cfg.UpRate,
-		ChunkSize: cfg.ChunkSize,
-		FrameTime: cfg.FrameTime,
-		Seed:      cfg.Seed,
+		Delay:      cfg.UpDelay,
+		Jitter:     cfg.UpJitter,
+		Rate:       cfg.UpRate,
+		ChunkSize:  cfg.ChunkSize,
+		FrameTime:  cfg.FrameTime,
+		Seed:       cfg.Seed,
+		SerialMode: cfg.SerialMode,
 	}
 	down = ShaperConfig{
-		Delay:     cfg.DownDelay,
-		Jitter:    cfg.DownJitter,
-		Rate:      cfg.DownRate,
-		ChunkSize: cfg.ChunkSize,
-		FrameTime: cfg.FrameTime,
-		Seed:      cfg.Seed + 1, // Different seed for each direction
+		Delay:      cfg.DownDelay,
+		Jitter:     cfg.DownJitter,
+		Rate:       cfg.DownRate,
+		ChunkSize:  cfg.ChunkSize,
+		FrameTime:  cfg.FrameTime,
+		Seed:       cfg.Seed + 1, // Different seed for each direction
+		SerialMode: cfg.SerialMode,
 	}
 	return up, down
 }
