@@ -83,7 +83,7 @@ func TestNoRawModeWhenStdoutNotTTY(t *testing.T) {
 	for i := 0; i < maxTries; i++ {
 		// small delay to allow ttylag to run and potentially modify termios
 		time.Sleep(20 * time.Millisecond)
-		termPtr, err := unix.IoctlGetTermios(int(slave.Fd()), unix.TIOCGETA)
+		termPtr, err := unix.IoctlGetTermios(int(slave.Fd()), ioctlGetTermios)
 		if err != nil {
 			continue
 		}

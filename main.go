@@ -420,9 +420,9 @@ func run(cfg *Config) int {
 	// CR+LF (0d 0a) instead of just LF (0a), causing display artifacts.
 	stdoutIsTerminal := term.IsTerminal(int(os.Stdout.Fd()))
 	if !stdoutIsTerminal {
-		if termios, err := unix.IoctlGetTermios(int(ptmx.Fd()), unix.TIOCGETA); err == nil {
+		if termios, err := unix.IoctlGetTermios(int(ptmx.Fd()), ioctlGetTermios); err == nil {
 			termios.Oflag &^= unix.ONLCR
-			unix.IoctlSetTermios(int(ptmx.Fd()), unix.TIOCSETA, termios)
+			unix.IoctlSetTermios(int(ptmx.Fd()), ioctlSetTermios, termios)
 		}
 	}
 
