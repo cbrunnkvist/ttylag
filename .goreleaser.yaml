@@ -30,6 +30,8 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
+    files:
+      - ttylag.1
 
 checksum:
   name_template: 'checksums.txt'
@@ -55,8 +57,7 @@ brews:
     description: "Userspace PTY wrapper that simulates laggy/slow network connections"
     license: "MIT"
     install: |
-      system "go", "build", *std_go_args(ldflags: "-s -w")
-      system "go", "run", "cmd/genman/main.go", "-o", "ttylag.1"
+      bin.install "ttylag"
       man1.install "ttylag.1"
     test: |
       system "#{bin}/ttylag", "--version"
