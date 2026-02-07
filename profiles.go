@@ -106,6 +106,26 @@ var profiles = map[string]Config{
 		DownRate: 10000000 / 8, // 10mbit (typical VPN)
 		UpRate:   5000000 / 8,  // 5mbit
 	},
+
+	// Deep space
+	"lunar": {
+		RTT:      2560 * time.Millisecond, // Earth-Moon ~1.28s one-way (384,400km / c)
+		Jitter:   50 * time.Millisecond,   // Space links are stable once locked
+		DownRate: 128000 / 8,              // 128kbit S-band downlink
+		UpRate:   16000 / 8,               // 16kbit uplink (commands)
+	},
+	"mars-close": {
+		RTT:      6 * time.Minute, // Mars at closest approach (~54.6M km)
+		Jitter:   time.Second,     // DSN tracking variations
+		DownRate: 2000000 / 8,     // 2mbit DSN downlink
+		UpRate:   16000 / 8,       // 16kbit uplink
+	},
+	"mars-far": {
+		RTT:      44 * time.Minute, // Mars at opposition (~401M km)
+		Jitter:   2 * time.Second,  // Longer path = more variation
+		DownRate: 500000 / 8,       // 500kbit (signal degrades with distance)
+		UpRate:   8000 / 8,         // 8kbit uplink
+	},
 }
 
 // formatRate formats a bytes-per-second rate as a human-readable string.

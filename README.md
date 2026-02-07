@@ -111,6 +111,9 @@ edge                 500ms     100ms     200kbit     100kbit  packet
 intercontinental     250ms      30ms      10mbit       5mbit  packet
 lte                   50ms      15ms      20mbit       5mbit  packet
 lte-poor             150ms      50ms       2mbit     500kbit  packet
+lunar                2.56s      50ms     128kbit      16kbit  packet
+mars-close            6m0s        1s       2mbit      16kbit  packet
+mars-far             44m0s        2s     500kbit       8kbit  packet
 satellite            600ms      50ms      25mbit       5mbit  packet
 satellite-geo        700ms     100ms      10mbit       2mbit  packet
 wifi-bad             200ms     100ms     500kbit     250kbit  packet
