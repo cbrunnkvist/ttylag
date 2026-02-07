@@ -256,12 +256,6 @@ Then commit and push to your tap repository.
    - Use `std_go_args(ldflags: "-s -w")` for consistency
    - Test with `--version` is standard practice
 
-3. **Module Path Note**:
-   - Your `go.mod` uses `github.com/user/ttylag`
-   - Your repo is at `github.com/cbrunnkvist/ttylag`
-   - This doesn't affect Homebrew (builds from tarball, not `go get`)
-   - May want to update go.mod in future for consistency
-
 ## Files Created
 
 - `Formula/ttylag.rb` - The Homebrew formula
