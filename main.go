@@ -23,7 +23,7 @@ import (
 	"golang.org/x/term"
 )
 
-var version = "0.1.3"
+var version = "0.1.4"
 
 // Default terminal dimensions when stdin is not a TTY
 const (
