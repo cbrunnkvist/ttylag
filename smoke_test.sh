@@ -6,6 +6,24 @@
 
 set -e
 
+# OS-aware detection for how to invoke the BSD/Linux `script` utility
+OS_NAME="$(uname -s)"
+SCRIPT_FLAGS=""
+case "$OS_NAME" in
+  Darwin*)
+    # macOS/BSD: script -r -q [recording] [command ...]
+    SCRIPT_FLAGS="-r -q"
+    ;;
+  Linux*)
+    # Linux: script -q -c "<command>" [recording]
+    SCRIPT_FLAGS="-q -c"
+    ;;
+  *)
+    # Fallback: assume Linux-like behavior
+    SCRIPT_FLAGS="-q -c"
+    ;;
+esac
+
 TTYLAG="./ttylag"
 TMPDIR="${TMPDIR:-/tmp}"
 TEST_OUTPUT="$TMPDIR/ttylag_smoke_$$"
@@ -68,8 +86,13 @@ if [[ -t 0 ]]; then
     RECORDING="$TEST_OUTPUT.rec"
     
     # Use script to record ttylag running a simple command
-    # The -r flag records with timestamps
-    script -r -q "$RECORDING" timeout 3 $TTYLAG --rtt 200ms -- sh -c 'echo "START"; sleep 0.5; echo "END"' 2>/dev/null || true
+    # The -r flag records with timestamps (OS-specific invocation)
+    if [[ "$OS_NAME" == Darwin* ]]; then
+        script $SCRIPT_FLAGS "$RECORDING" timeout 3 $TTYLAG --rtt 200ms -- sh -c 'echo "START"; sleep 0.5; echo "END"' 2>/dev/null || true
+    else
+        CMD="timeout 3 $TTYLAG --rtt 200ms -- sh -c 'echo \"START\"; sleep 0.5; echo \"END\"'"
+        script $SCRIPT_FLAGS "$CMD" "$RECORDING" 2>/dev/null || true
+    fi
     
     if [[ -f "$RECORDING" ]]; then
         # Check if recording captured timing data

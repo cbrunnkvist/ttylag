@@ -29,3 +29,24 @@ jobs:
 
     - name: Check Man Page
       run: make check-man
+    
+    - name: Build ttylag binary
+      run: go build -o ./ttylag ./...
+
+    - name: Upload ttylag binary
+      uses: actions/upload-artifact@v3
+      with:
+        name: ttylag-binary
+        path: ./ttylag
+
+    - name: Download ttylag binary for smoke tests
+      uses: actions/download-artifact@v3
+      with:
+        name: ttylag-binary
+        path: .
+
+    - name: Make smoke_test.sh executable
+      run: chmod +x ./smoke_test.sh
+
+    - name: Run smoke tests
+      run: ./smoke_test.sh
