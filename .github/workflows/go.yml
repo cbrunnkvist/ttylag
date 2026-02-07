@@ -31,7 +31,7 @@ jobs:
       run: make check-man
     
     - name: Build ttylag binary
-      run: go build -o ./ttylag ./...
+      run: go build -o ./ttylag .
 
     - name: Upload ttylag binary
       uses: actions/upload-artifact@v4
