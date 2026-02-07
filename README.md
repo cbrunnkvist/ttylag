@@ -20,13 +20,13 @@ Alternatives (still supported):
 - Go install:
 
 ```bash
-go install github.com/user/ttylag@latest
+go install github.com/cbrunnkvist/ttylag@latest
 ```
 
 - Build from source:
 
 ```bash
-git clone https://github.com/user/ttylag
+git clone https://github.com/cbrunnkvist/ttylag
 cd ttylag
 go build -o ttylag .
 ```
