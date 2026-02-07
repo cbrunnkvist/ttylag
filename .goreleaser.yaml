@@ -54,7 +54,7 @@ brews:
     homepage: "https://github.com/cbrunnkvist/ttylag"
     description: "Userspace PTY wrapper that simulates laggy/slow network connections"
     license: "MIT"
-    custom_install: |
+    install: |
       system "go", "build", *std_go_args(ldflags: "-s -w")
       system "go", "run", "cmd/genman/main.go", "-o", "ttylag.1"
       man1.install "ttylag.1"
