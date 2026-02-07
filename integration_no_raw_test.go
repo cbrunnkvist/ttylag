@@ -64,7 +64,7 @@ func TestNoRawModeWhenStdoutNotTTY(t *testing.T) {
 
 	// Gate Setctty usage to Linux only to avoid macOS-specific failures
 	if runtime.GOOS == "linux" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: int(slave.Fd())}
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
 	} else {
 		// macOS and others: omit Setctty; rely on PTY slave to present a terminal
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
