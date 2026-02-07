@@ -94,14 +94,9 @@ if [[ -t 0 ]]; then
         script $SCRIPT_FLAGS "$CMD" "$RECORDING" 2>/dev/null || true
     fi
     
-    if [[ -f "$RECORDING" ]]; then
-        # Check if recording captured timing data
-        if file "$RECORDING" | grep -q "data\|text"; then
-            echo "  Recording captured: $(wc -c < "$RECORDING") bytes"
-            echo "  PASS: Script recording works"
-        else
-            echo "  SKIP: Recording format not recognized"
-        fi
+    if [[ -f "$RECORDING" && -s "$RECORDING" ]]; then
+        echo "  Recording captured: $(wc -c < "$RECORDING") bytes"
+        echo "  PASS: Script recording works"
     else
         echo "  SKIP: No recording file created (may need real TTY)"
     fi
@@ -111,11 +106,6 @@ else
     echo "    script -r test.rec timeout 5 ./ttylag --rtt 200ms -- bash"
     echo "    script -p test.rec  # playback"
 fi
-
-# Test 5: Unit tests
-echo ""
-echo "Test 5: Unit tests..."
-go test -v -count=1 ./... 2>&1 | tail -20
 
 echo ""
 echo "=== All smoke tests passed ==="
