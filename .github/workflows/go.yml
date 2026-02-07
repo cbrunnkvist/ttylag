@@ -34,13 +34,13 @@ jobs:
       run: go build -o ./ttylag ./...
 
     - name: Upload ttylag binary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ttylag-binary
         path: ./ttylag
 
     - name: Download ttylag binary for smoke tests
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: ttylag-binary
         path: .
